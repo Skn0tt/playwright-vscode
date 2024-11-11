@@ -16,10 +16,9 @@
 
 import { enableConfigs, expect, selectConfig, selectTestItem, test, traceViewerInfo } from './utils';
 
-test.skip(({ showTrace }) => !showTrace);
-test.skip(({ showTrace, overridePlaywrightVersion }) => overridePlaywrightVersion && showTrace === 'embedded');
+test.skip(({ traceViewerMode }) => !traceViewerMode);
 
-test('@smoke should open trace viewer', async ({ activate, showTrace }) => {
+test('@smoke should open trace viewer', async ({ activate, traceViewerMode }) => {
   const { vscode, testController } = await activate({
     'playwright.config.js': `module.exports = { testDir: 'tests' }`,
     'tests/test.spec.ts': `
@@ -33,12 +32,12 @@ test('@smoke should open trace viewer', async ({ activate, showTrace }) => {
   selectTestItem(testController.findTestItems(/pass/)[0]);
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     traceFile: expect.stringContaining('pass'),
   });
 });
 
-test('should change opened file in trace viewer', async ({ activate, showTrace }) => {
+test('should change opened file in trace viewer', async ({ activate, traceViewerMode }) => {
   const { vscode, testController } = await activate({
     'playwright.config.js': `module.exports = { testDir: 'tests' }`,
     'tests/test.spec.ts': `
@@ -54,14 +53,14 @@ test('should change opened file in trace viewer', async ({ activate, showTrace }
   selectTestItem(testController.findTestItems(/one/)[0]);
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     traceFile: expect.stringContaining('one'),
   });
 
   selectTestItem(testController.findTestItems(/two/)[0]);
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     traceFile: expect.stringContaining('two'),
   });
 });
@@ -83,7 +82,7 @@ test('should not open trace viewer if test did not run', async ({ activate }) =>
   });
 });
 
-test('should refresh trace viewer while test is running', async ({ activate, createLatch, showTrace }) => {
+test('should refresh trace viewer while test is running', async ({ activate, createLatch, traceViewerMode }) => {
   const latch = createLatch();
 
   const { vscode, testController } = await activate({
@@ -99,7 +98,7 @@ test('should refresh trace viewer while test is running', async ({ activate, cre
 
   const testRunPromise = testController.run();
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     traceFile: expect.stringMatching(/\.json$/),
   });
 
@@ -107,12 +106,12 @@ test('should refresh trace viewer while test is running', async ({ activate, cre
   await testRunPromise;
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     traceFile: expect.stringMatching(/\.zip$/),
   });
 });
 
-test('should close trace viewer if test configs refreshed', async ({ activate, showTrace }) => {
+test('should close trace viewer if test configs refreshed', async ({ activate, traceViewerMode }) => {
   const { vscode, testController } = await activate({
     'playwright.config.js': `module.exports = { testDir: 'tests' }`,
     'tests/test.spec.ts': `
@@ -126,20 +125,16 @@ test('should close trace viewer if test configs refreshed', async ({ activate, s
   selectTestItem(testController.findTestItems(/pass/)[0]);
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     traceFile: expect.stringContaining('pass'),
   });
 
   await testController.refreshHandler(null);
 
-  await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
-    traceFile: undefined,
-    visible: false,
-  });
+  await expect.poll(() => traceViewerInfo(vscode)).toBeUndefined();
 });
 
-test('should open new trace viewer when another test config is selected', async ({ activate, showTrace }) => {
+test('should open new trace viewer when another test config is selected', async ({ activate, traceViewerMode }) => {
   const { vscode, testController } = await activate({
     'playwright1.config.js': `module.exports = { testDir: 'tests1' }`,
     'playwright2.config.js': `module.exports = { testDir: 'tests2' }`,
@@ -163,7 +158,7 @@ test('should open new trace viewer when another test config is selected', async 
   selectTestItem(testItems[0]);
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     serverUrlPrefix: expect.stringContaining('http'),
     testConfigFile: expect.stringContaining('playwright1.config.js'),
   });
@@ -172,17 +167,13 @@ test('should open new trace viewer when another test config is selected', async 
   // closes opened trace viewer
   await selectConfig(vscode, 'playwright2.config.js');
 
-  await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
-    traceFile: undefined,
-    visible: false,
-  });
+  await expect.poll(() => traceViewerInfo(vscode)).toBeUndefined();
 
   // opens trace viewer from selected test config
   selectTestItem(testItems[0]);
 
   await expect.poll(() => traceViewerInfo(vscode)).toMatchObject({
-    type: showTrace,
+    type: traceViewerMode,
     serverUrlPrefix: expect.stringContaining('http'),
     testConfigFile: expect.stringContaining('playwright2.config.js'),
   });

@@ -45,12 +45,10 @@ export class SettingsModel extends DisposableBase {
   showTrace: Setting<boolean>;
   runGlobalSetupOnEachRun: Setting<boolean>;
   embeddedTraceViewer: Setting<boolean>;
-  private _isUnderTest: boolean;
 
-  constructor(vscode: vscodeTypes.VSCode, isUnderTest: boolean, context: vscodeTypes.ExtensionContext) {
+  constructor(vscode: vscodeTypes.VSCode, context: vscodeTypes.ExtensionContext) {
     super();
     this._vscode = vscode;
-    this._isUnderTest = isUnderTest;
     this._context = context;
     this._onChange = new vscode.EventEmitter();
     this.onChange = this._onChange.event;
@@ -58,7 +56,7 @@ export class SettingsModel extends DisposableBase {
     this.showBrowser = this._createSetting('reuseBrowser');
     this.showTrace = this._createSetting('showTrace');
     this.runGlobalSetupOnEachRun = this._createSetting('runGlobalSetupOnEachRun');
-    this.embeddedTraceViewer = this._createHiddenSetting('embeddedTraceViewer', false);
+    this.embeddedTraceViewer = this._createSetting('embeddedTraceViewer');
 
     this._disposables.push(
         this._onChange,
@@ -84,17 +82,7 @@ export class SettingsModel extends DisposableBase {
   }
 
   private _createSetting<T>(settingName: string): Setting<T> {
-    const setting = new PersistentSetting<T>(this._vscode, settingName);
-    this._disposables.push(setting);
-    this._disposables.push(setting.onChange(() => this._onChange.fire()));
-    this._settings.set(settingName, setting);
-    return setting;
-  }
-
-  private _createHiddenSetting<T>(settingName: string, value: T): Setting<T> {
-    if (this._isUnderTest)
-      return this._createSetting(settingName);
-    const setting = new InMemorySetting<T>(this._vscode, settingName, value);
+    const setting = new Setting<T>(this._vscode, settingName);
     this._disposables.push(setting);
     this._disposables.push(setting.onChange(() => this._onChange.fire()));
     this._settings.set(settingName, setting);
@@ -109,17 +97,11 @@ export class SettingsModel extends DisposableBase {
   }
 }
 
-export interface Setting<T> extends vscodeTypes.Disposable {
-  readonly onChange: vscodeTypes.Event<T>;
-  get(): T;
-  set(value: T): Promise<void>;
-}
-
-class SettingBase<T> extends DisposableBase implements Setting<T> {
+export class Setting<T> extends DisposableBase {
   readonly settingName: string;
   readonly onChange: vscodeTypes.Event<T>;
-  protected _onChange: vscodeTypes.EventEmitter<T>;
-  protected _vscode: vscodeTypes.VSCode;
+  private _onChange: vscodeTypes.EventEmitter<T>;
+  private _vscode: vscodeTypes.VSCode;
 
   constructor(vscode: vscodeTypes.VSCode, settingName: string) {
     super();
@@ -127,19 +109,6 @@ class SettingBase<T> extends DisposableBase implements Setting<T> {
     this.settingName = settingName;
     this._onChange = new vscode.EventEmitter<T>();
     this.onChange = this._onChange.event;
-  }
-  get(): T {
-    throw new Error('Method not implemented.');
-  }
-
-  set(value: T): Promise<void> {
-    throw new Error('Method not implemented.');
-  }
-}
-
-class PersistentSetting<T> extends SettingBase<T> {
-  constructor(vscode: vscodeTypes.VSCode, settingName: string) {
-    super(vscode, settingName);
 
     const settingFQN = `playwright.${settingName}`;
     this._disposables = [
@@ -166,22 +135,5 @@ class PersistentSetting<T> extends SettingBase<T> {
       configuration.update(this.settingName, value, false);
     // Intentionally fall through.
     configuration.update(this.settingName, value, true);
-  }
-}
-
-class InMemorySetting<T> extends SettingBase<T> {
-  private _value: T;
-  constructor(vscode: vscodeTypes.VSCode, settingName: string, value: T) {
-    super(vscode, settingName);
-    this._value = value;
-  }
-
-  get(): T {
-    return this._value;
-  }
-
-  async set(value: T) {
-    this._value = value;
-    this._onChange.fire(value);
   }
 }

@@ -52,6 +52,10 @@ export class EmbeddedTraceViewer implements TraceViewer {
     traceViewerPanel?.loadTraceRequested(file);
   }
 
+  async reveal() {
+    await this._startIfNeeded();
+  }
+
   close() {
     this._traceViewerPanelPromise?.then(panel => panel?.dispose()).catch(() => {});
     this._traceViewerPanelPromise = undefined;

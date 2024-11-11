@@ -215,7 +215,7 @@ export class TestItem {
 
   async expand() {
     if (this.canResolveChildren)
-      await this.testController.resolveHandler!(this);
+      await this.testController.resolveHandler(this);
   }
 
   add(item: TestItem) {
@@ -503,8 +503,8 @@ export class TestController {
   private _didCreateTestRun = new EventEmitter<TestRun>();
   readonly onDidCreateTestRun = this._didCreateTestRun.event;
 
-  refreshHandler?: (item: TestItem | null) => Promise<void>;
-  resolveHandler?: (item: TestItem | null) => Promise<void>;
+  refreshHandler: (item: TestItem | null) => Promise<void>;
+  resolveHandler: (item: TestItem | null) => Promise<void>;
 
   constructor(readonly vscode: VSCode, id: string, label: string) {
     this.items = new TestItem(this, id, label);
@@ -605,7 +605,7 @@ class TextDocument {
     this.lines = text.split('\n');
   }
 
-  lineAt(i: number) {
+  lineAt(i) {
     const line = this.lines[i];
     return {
       text: line,
@@ -719,7 +719,7 @@ class Debug {
   output = '';
   dapFactories: any[] = [];
   private _dapSniffer: any;
-  private _debuggerProcess?: ChildProcessWithoutNullStreams;
+  private _debuggerProcess: ChildProcessWithoutNullStreams;
 
   constructor() {
   }
@@ -757,7 +757,7 @@ class Debug {
   }
 
   stopDebugging() {
-    this._debuggerProcess?.kill();
+    this._debuggerProcess.kill();
   }
 
   simulateStoppedOnError(error: string, location: { file: string; line: number; }) {
@@ -875,7 +875,7 @@ enum UIKind {
 }
 
 type HoverProvider = {
-  provideHover?(document: TextDocument, position: Position, token: CancellationToken): void
+  provideHover?(document: Document, position: Position, token: CancellationToken): void
 };
 
 export class VSCode {
@@ -955,7 +955,7 @@ export class VSCode {
     };
     this.context = { subscriptions: [], extensionUri: Uri.file(baseDir), workspaceState };
     this._browser = browser;
-    (globalThis as any).__logForTest = (message: any) => this.connectionLog.push(message);
+    (globalThis as any).__logForTest = message => this.connectionLog.push(message);
     const commands = new Map<string, () => Promise<void>>();
     this.commands.registerCommand = (name: string, callback: () => Promise<void>) => {
       commands.set(name, callback);
@@ -982,7 +982,7 @@ export class VSCode {
       this._hoverProviders.set(language, provider);
       return disposable;
     };
-    this.languages.emitHoverEvent = (language: string, document: TextDocument, position: Position, token: CancellationToken) => {
+    this.languages.emitHoverEvent = (language: string, document: Document, position: Position, token: CancellationToken) => {
       const provider = this._hoverProviders.get(language);
       if (!provider)
         return;
@@ -1029,15 +1029,11 @@ export class VSCode {
       panel.onDidChangeViewState = didChangeViewState.event;
       panel.webview = webview;
       panel.visible = true;
-      webview.onDidChangeVisibility((visibilityState: string) => {
+      webview.onDidChangeVisibility(visibilityState => {
         panel.visible = visibilityState === 'visible';
         didChangeViewState.fire({ webviewPanel: panel });
       });
       pagePromise.then(webview => {
-        if (!webview) {
-          // test ended.
-          return;
-        }
         webview.on('close', () => {
           panel.dispose();
           webviews.delete(webview);
@@ -1047,7 +1043,7 @@ export class VSCode {
         this._webViewsByPanelType.set(viewType, webviews);
       });
       panel.dispose = () => {
-        pagePromise.then(page => page?.close());
+        pagePromise.then(page => page.close());
         didDispose.fire();
       };
       return panel;
@@ -1077,7 +1073,7 @@ export class VSCode {
       };
       return inputBox;
     };
-    this.window.withProgress = async (opts: any, callback: any) => {
+    this.window.withProgress = async (opts, callback) => {
       const progress = {
         report: (data: any) => this.lastWithProgressData = data,
       };
@@ -1090,7 +1086,7 @@ export class VSCode {
       this._didChangeActiveTextEditor.fire(this.window.activeTextEditor);
       return editor;
     };
-    this.window.showQuickPick = async (options: any) => {
+    this.window.showQuickPick = async options => {
       return this.window.mockQuickPick(options);
     };
     this.window.registerTerminalLinkProvider = () => disposable;
@@ -1117,7 +1113,7 @@ export class VSCode {
       return document;
     };
 
-    this.workspace.findFiles = async (pattern: string) => {
+    this.workspace.findFiles = async pattern => {
       const uris: Uri[] = [];
       for (const workspaceFolder of this.workspace.workspaceFolders) {
         await new Promise<void>(f => {
@@ -1137,7 +1133,7 @@ export class VSCode {
           return workspaceFolder;
       }
     };
-    const settings: Record<string, any> = {
+    const settings = {
       'playwright.env': {},
       'playwright.reuseBrowser': false,
       'playwright.showTrace': false,
@@ -1145,18 +1141,18 @@ export class VSCode {
       'playwright.runGlobalSetupOnEachRun': false,
       'workbench.colorTheme': 'Dark Modern',
     };
-    this.workspace.getConfiguration = (scope: string) => {
+    this.workspace.getConfiguration = scope => {
       return {
-        get: (key: string) => settings[scope + '.' + key],
-        update: (key: string, value: any, notifyListeners?: boolean) => {
+        get: key => settings[scope + '.' + key],
+        update: (key, value, notifyListeners) => {
           settings[scope + '.' + key] = value;
           if (notifyListeners) {
             this._didChangeConfiguration.fire({
-              affectsConfiguration: (prefix: string) => (scope + '.' + key).startsWith(prefix)
+              affectsConfiguration: prefix => (scope + '.' + key).startsWith(prefix)
             });
           }
         },
-        inspect: (key: string) => {
+        inspect: key => {
           return { defaultValue: false, globalValue: settings[scope + '.' + key] };
         },
       };
@@ -1170,9 +1166,7 @@ export class VSCode {
     for (const [name, provider] of this._webviewProviders) {
       const { webview, pagePromise } = this._createWebviewAndPage();
       provider?.resolveWebviewView({ webview, onDidChangeVisibility: () => disposable });
-      const page = await pagePromise;
-      if (page)
-        this.webViews.set(name, page);
+      this.webViews.set(name, await pagePromise);
     }
   }
 
@@ -1196,7 +1190,7 @@ export class VSCode {
   private _createWebviewAndPage() {
     let initializedPage: Page | undefined = undefined;
     const webview: any = {};
-    webview.asWebviewUri = (uri: Uri) => path.relative(this.context.extensionUri.fsPath, uri.fsPath).replace(/\\/g, '/');
+    webview.asWebviewUri = uri => path.relative(this.context.extensionUri.fsPath, uri.fsPath).replace(/\\/g, '/');
     const didReceiveMessage = new EventEmitter<any>();
     const didChangeVisibility = new EventEmitter<'visible' | 'hidden'>();
     webview.onDidReceiveMessage = didReceiveMessage.event;
@@ -1211,7 +1205,7 @@ export class VSCode {
       initializedPage.evaluate((data: any) => {
         const event = new globalThis.Event('message');
         (event as any).data = data;
-        (globalThis as any).dispatchEvent(event);
+        globalThis.dispatchEvent(event);
       }, data).catch(() => {});
     };
     const createPage = async () => {
@@ -1239,7 +1233,7 @@ export class VSCode {
           didChangeVisibility.fire('hidden');
       });
       await page.addInitScript(() => {
-        (globalThis as any).acquireVsCodeApi = () => globalThis;
+        globalThis.acquireVsCodeApi = () => globalThis;
       });
       await page.goto('http://localhost');
       await page.exposeFunction('postMessage', (data: any) => didReceiveMessage.fire(data));
@@ -1253,7 +1247,7 @@ export class VSCode {
         webview.postMessage(m);
       return page;
     };
-    const pagePromise = createPage().catch(() => null);
+    const pagePromise = createPage();
     return { webview, pagePromise };
   }
 
@@ -1302,7 +1296,7 @@ export class VSCode {
   async renderProjectTree(): Promise<string> {
     const result: string[] = [''];
     const webView = this.webViews.get('pw.extension.settingsView')!;
-    const selectedConfig = await webView.getByTestId('models').evaluate(e => e.selectedOptions[0].textContent);
+    const selectedConfig = await webView.getByTestId('models').evaluate((e: HTMLSelectElement) => e.selectedOptions[0].textContent);
     result.push(`    config: ${selectedConfig}`);
     const projectLocators = await webView.getByTestId('projects').locator('div').locator('label').all();
     for (const projectLocator of projectLocators) {

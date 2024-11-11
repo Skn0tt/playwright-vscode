@@ -70,12 +70,8 @@ export class SpawnTraceViewer implements TraceViewer {
     });
     this._traceViewerProcess = traceViewerProcess;
 
-    const pipeLog = (data: Buffer) => {
-      if (!this._vscode.isUnderTest)
-        console.log(data.toString());
-    };
-    traceViewerProcess.stdout?.on('data', pipeLog);
-    traceViewerProcess.stderr?.on('data', pipeLog);
+    traceViewerProcess.stdout?.on('data', data => console.log(data.toString()));
+    traceViewerProcess.stderr?.on('data', data => console.log(data.toString()));
     traceViewerProcess.on('exit', () => {
       this._traceViewerProcess = undefined;
       this._currentFile = undefined;
