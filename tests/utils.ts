@@ -44,7 +44,6 @@ export type WorkerOptions = {
   overridePlaywrightVersion?: number;
   showBrowser: boolean;
   vsCodeVersion: number;
-  traceViewerMode?: 'spawn' | 'embedded';
 };
 
 // Make sure connect tests work with the locally-rolled version.
@@ -124,13 +123,14 @@ export const test = baseTest.extend<TestFixtures, WorkerOptions>({
   overridePlaywrightVersion: [undefined, { option: true, scope: 'worker' }],
   showBrowser: [false, { option: true, scope: 'worker' }],
   vsCodeVersion: [1.86, { option: true, scope: 'worker' }],
-  traceViewerMode: [undefined, { option: true, scope: 'worker' }],
+  showTrace: false,
+  envRemoteName: undefined,
 
   vscode: async ({ browser, vsCodeVersion }, use) => {
     await use(new VSCode(vsCodeVersion, path.resolve(__dirname, '..'), browser));
   },
 
-  activate: async ({ vscode, showBrowser, overridePlaywrightVersion, traceViewerMode }, use, testInfo) => {
+  activate: async ({ vscode, showBrowser, showTrace, envRemoteName, overridePlaywrightVersion }, use, testInfo) => {
     const instances: VSCode[] = [];
     await use(async (files: { [key: string]: string }, options?: { rootDir?: string, workspaceFolders?: [string, any][], env?: Record<string, any>, runGlobalSetupOnEachRun?: boolean }) => {
       if (options?.workspaceFolders) {
@@ -147,15 +147,10 @@ export const test = baseTest.extend<TestFixtures, WorkerOptions>({
         configuration.update('runGlobalSetupOnEachRun', true);
       if (showBrowser)
         configuration.update('reuseBrowser', true);
-      if (traceViewerMode) {
+      if (showTrace)
         configuration.update('showTrace', true);
-
-        // prevents spawn trace viewer process from opening app and browser
-        vscode.env.remoteName = 'ssh-remote';
-        process.env.PWTEST_UNDER_TEST = '1';
-      }
-      if (traceViewerMode === 'embedded')
-        configuration.update('embeddedTraceViewer', true);
+      if (envRemoteName)
+        vscode.env.remoteName = envRemoteName;
 
       const extension = new Extension(vscode, vscode.context);
       if (overridePlaywrightVersion)

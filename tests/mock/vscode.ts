@@ -1023,16 +1023,9 @@ export class VSCode {
     this.window.createWebviewPanel = (viewType: string) => {
       const { webview, pagePromise } = this._createWebviewAndPage();
       const didDispose = new EventEmitter<void>();
-      const didChangeViewState = new EventEmitter<{ webviewPanel: any }>();
       const panel: any = {};
       panel.onDidDispose = didDispose.event;
-      panel.onDidChangeViewState = didChangeViewState.event;
       panel.webview = webview;
-      panel.visible = true;
-      webview.onDidChangeVisibility(visibilityState => {
-        panel.visible = visibilityState === 'visible';
-        didChangeViewState.fire({ webviewPanel: panel });
-      });
       pagePromise.then(webview => {
         webview.on('close', () => {
           panel.dispose();
@@ -1137,7 +1130,6 @@ export class VSCode {
       'playwright.env': {},
       'playwright.reuseBrowser': false,
       'playwright.showTrace': false,
-      'playwright.embeddedTraceViewer': false,
       'playwright.runGlobalSetupOnEachRun': false,
       'workbench.colorTheme': 'Dark Modern',
     };
@@ -1180,21 +1172,12 @@ export class VSCode {
     return webviews ? [...webviews] : [];
   }
 
-  async changeVisibility(webview: Page, state: 'visible' | 'hidden') {
-    if (state === 'visible')
-      await webview.goto('http://localhost');
-    else
-      await webview.goto('http://localhost/hidden');
-  }
-
   private _createWebviewAndPage() {
     let initializedPage: Page | undefined = undefined;
     const webview: any = {};
     webview.asWebviewUri = uri => path.relative(this.context.extensionUri.fsPath, uri.fsPath).replace(/\\/g, '/');
-    const didReceiveMessage = new EventEmitter<any>();
-    const didChangeVisibility = new EventEmitter<'visible' | 'hidden'>();
-    webview.onDidReceiveMessage = didReceiveMessage.event;
-    webview.onDidChangeVisibility = didChangeVisibility.event;
+    const eventEmitter = new EventEmitter<any>();
+    webview.onDidReceiveMessage = eventEmitter.event;
     webview.cspSource = 'http://localhost/';
     const pendingMessages: any[] = [];
     webview.postMessage = (data: any) => {
@@ -1217,26 +1200,17 @@ export class VSCode {
           route.continue();
         } else if (url === 'http://localhost/') {
           route.fulfill({ body: webview.html });
-        } else if (url === 'http://localhost/hidden') {
-          route.fulfill({ body: 'hidden webview' });
         } else {
           const suffix = url.substring('http://localhost/'.length);
           const buffer = fs.readFileSync(path.join(this.context.extensionUri.fsPath, suffix));
           route.fulfill({ body: buffer });
         }
       });
-      page.on('load', () => {
-        const url = page.url();
-        if (url === 'http://localhost/')
-          didChangeVisibility.fire('visible');
-        else if (url === 'http://localhost/hidden')
-          didChangeVisibility.fire('hidden');
-      });
       await page.addInitScript(() => {
         globalThis.acquireVsCodeApi = () => globalThis;
       });
       await page.goto('http://localhost');
-      await page.exposeFunction('postMessage', (data: any) => didReceiveMessage.fire(data));
+      await page.exposeFunction('postMessage', (data: any) => eventEmitter.fire(data));
       this.context.subscriptions.push({
         dispose: () => {
           context.close().catch(() => {});
