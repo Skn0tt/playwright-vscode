@@ -503,7 +503,6 @@ export class TestController {
   private _didCreateTestRun = new EventEmitter<TestRun>();
   readonly onDidCreateTestRun = this._didCreateTestRun.event;
 
-  refreshHandler: (item: TestItem | null) => Promise<void>;
   resolveHandler: (item: TestItem | null) => Promise<void>;
 
   constructor(readonly vscode: VSCode, id: string, label: string) {

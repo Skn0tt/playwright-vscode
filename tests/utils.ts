@@ -18,8 +18,6 @@ import { expect as baseExpect, test as baseTest, Browser, chromium, Page } from 
 import { Extension } from '../out/extension';
 import { TestController, VSCode, WorkspaceFolder, TestRun, TestItem } from './mock/vscode';
 
-import crypto from 'crypto';
-import fs from 'fs';
 import path from 'path';
 
 type ActivateResult = {
@@ -28,16 +26,9 @@ type ActivateResult = {
   workspaceFolder: WorkspaceFolder;
 };
 
-type Latch = {
-  blockingCode: string;
-  open: () => void;
-  close: () => void;
-};
-
 type TestFixtures = {
   vscode: VSCode,
-  activate: (files: { [key: string]: string }, options?: { rootDir?: string, workspaceFolders?: [string, any][], env?: Record<string, any>, runGlobalSetupOnEachRun?: boolean }) => Promise<ActivateResult>;
-  createLatch: () => Latch;
+  activate: (files: { [key: string]: string }, options?: { rootDir?: string, workspaceFolders?: [string, any][], env?: Record<string, any> }) => Promise<ActivateResult>;
 };
 
 export type WorkerOptions = {
@@ -123,14 +114,12 @@ export const test = baseTest.extend<TestFixtures, WorkerOptions>({
   overridePlaywrightVersion: [undefined, { option: true, scope: 'worker' }],
   showBrowser: [false, { option: true, scope: 'worker' }],
   vsCodeVersion: [1.86, { option: true, scope: 'worker' }],
-  showTrace: false,
-  envRemoteName: undefined,
 
   vscode: async ({ browser, vsCodeVersion }, use) => {
     await use(new VSCode(vsCodeVersion, path.resolve(__dirname, '..'), browser));
   },
 
-  activate: async ({ vscode, showBrowser, showTrace, envRemoteName, overridePlaywrightVersion }, use, testInfo) => {
+  activate: async ({ vscode, showBrowser, overridePlaywrightVersion }, use, testInfo) => {
     const instances: VSCode[] = [];
     await use(async (files: { [key: string]: string }, options?: { rootDir?: string, workspaceFolders?: [string, any][], env?: Record<string, any>, runGlobalSetupOnEachRun?: boolean }) => {
       if (options?.workspaceFolders) {
@@ -147,10 +136,6 @@ export const test = baseTest.extend<TestFixtures, WorkerOptions>({
         configuration.update('runGlobalSetupOnEachRun', true);
       if (showBrowser)
         configuration.update('reuseBrowser', true);
-      if (showTrace)
-        configuration.update('showTrace', true);
-      if (envRemoteName)
-        vscode.env.remoteName = envRemoteName;
 
       const extension = new Extension(vscode, vscode.context);
       if (overridePlaywrightVersion)
@@ -168,18 +153,6 @@ export const test = baseTest.extend<TestFixtures, WorkerOptions>({
     });
     for (const vscode of instances)
       vscode.dispose();
-  },
-
-  // Copied from https://github.com/microsoft/playwright/blob/7e7319da7d84de6648900e27e6d844bec9071222/tests/playwright-test/ui-mode-fixtures.ts#L132
-  createLatch: async ({}, use, testInfo) => {
-    await use(() => {
-      const latchFile = path.join(testInfo.project.outputDir, createGuid() + '.latch');
-      return {
-        blockingCode: `await ((${waitForLatch})(${JSON.stringify(latchFile)}))`,
-        open: () => fs.writeFileSync(latchFile, 'ok'),
-        close: () => fs.unlinkSync(latchFile),
-      };
-    });
   },
 });
 
@@ -250,18 +223,4 @@ export async function selectTestItem(testItem: TestItem) {
 export async function singleWebViewByPanelType(vscode: VSCode, viewType: string) {
   await expect.poll(() => vscode.webViewsByPanelType(viewType)).toHaveLength(1);
   return vscode.webViewsByPanelType(viewType)[0];
-}
-
-export function traceViewerInfo(vscode: VSCode): { type: 'spawn' | 'embedded', serverUrlPrefix?: string, testConfigFile: string } | undefined {
-  return vscode.extensions[0].traceViewerInfoForTest();
-}
-
-async function waitForLatch(latchFile: string) {
-  const fs = require('fs');
-  while (!fs.existsSync(latchFile))
-    await new Promise(f => setTimeout(f, 250));
-}
-
-function createGuid(): string {
-  return crypto.randomBytes(16).toString('hex');
 }

@@ -57,6 +57,4 @@ export type {
   TerminalLink,
 } from 'vscode';
 
-export type VSCode = typeof import('vscode') & {
-  isUnderTest?: boolean;
-};
+export type VSCode = typeof import('vscode');
