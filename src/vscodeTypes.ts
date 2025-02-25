@@ -56,6 +56,9 @@ export type {
   WebviewViewResolveContext,
   WorkspaceConfiguration,
   TerminalLink,
+  LanguageModelTool,
+  LanguageModelToolInvocationOptions,
+  PreparedToolInvocation,
 } from 'vscode';
 
 export type VSCode = typeof import('vscode') & {

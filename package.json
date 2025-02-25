@@ -171,7 +171,41 @@
           "name": "%views.test.pw.extension.locatorsView%"
         }
       ]
-    }
+    },
+    "languageModelTools": [
+      {
+        "name": "playwright_pageSnapshot",
+        "toolReferenceName": "pageSnapshot",
+        "displayName": "Page Snapshot",
+        "icon": "$(beaker)",
+        "userDescription": "Page snapshot at the end of the test.",
+        "modelDescription": "Get the page contents at the end of the test. Useful for debugging, refactoring, and understanding what else needs to be tested. Don't read the snapshot from a file, use this tool instead.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "filePath": {
+              "description": "The absolute path of the file that contains the test.",
+              "type": "string"
+            },
+            "lineNumber": {
+              "type": "number",
+              "description": "The line number of the test you want browser snapshot information on."
+            },
+            "testName": {
+              "type": "string",
+              "description": "The name of the test you want browser snapshot information on."
+            }
+          },
+          "required": [
+            "filePath"
+          ]
+        },
+        "tags": [
+          "enable_other_tool_copilot_runTests"
+        ],
+        "canBeReferencedInPrompt": true
+      }
+    ]
   },
   "scripts": {
     "esbuild": "esbuild ./src/babelBundle.ts ./src/extension.ts ./src/oopReporter.ts ./src/debugTransform.ts ./src/playwrightFinder.ts ./src/*.script.ts --bundle --outdir=out --external:vscode --external:./babelBundle --external:./debugTransform --external:./oopReporter --external:./playwrightFinder --external:./*.script.ts --format=cjs --platform=node --target=ES2019",
@@ -195,7 +229,7 @@
     "@types/glob": "^8.0.0",
     "@types/node": "^18.11.9",
     "@types/stack-utils": "^2.0.1",
-    "@types/vscode": "1.93.0",
+    "@types/vscode": "^1.96.0",
     "@types/which": "^3.0.3",
     "@types/ws": "^8.5.3",
     "@typescript-eslint/eslint-plugin": "^7.3.1",

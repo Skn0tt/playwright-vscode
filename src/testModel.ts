@@ -32,6 +32,7 @@ import { upstreamTreeItem } from './testTree';
 import { collectTestIds } from './upstream/testTree';
 import { TraceViewer } from './traceViewer';
 import { SpawnTraceViewer } from './spawnTraceViewer';
+import { testRunOptionsSymbol } from './extension';
 
 export type TestEntry = reporterTypes.TestCase | reporterTypes.Suite;
 
@@ -552,6 +553,7 @@ export class TestModel extends DisposableBase {
       updateSnapshots: noOverrideToUndefined(this._embedder.settingsModel.updateSnapshots.get()),
       updateSourceMethod: noOverrideToUndefined(this._embedder.settingsModel.updateSourceMethod.get()),
       pageSnapshot: 'only-on-failure',
+      ...(request as any)[testRunOptionsSymbol],
     };
 
     try {
@@ -584,6 +586,7 @@ export class TestModel extends DisposableBase {
       connectWsEndpoint: externalOptions.connectWsEndpoint,
       updateSnapshots: noOverrideToUndefined(this._embedder.settingsModel.updateSnapshots.get()),
       updateSourceMethod: noOverrideToUndefined(this._embedder.settingsModel.updateSourceMethod.get()),
+      ...(request as any)[testRunOptionsSymbol],
     };
     try {
       if (token?.isCancellationRequested)

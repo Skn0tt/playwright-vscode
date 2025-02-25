@@ -22,7 +22,8 @@ import { minimatch } from 'minimatch';
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import which from 'which';
 import { Browser, Page } from '@playwright/test';
-import { CancellationToken } from '../../src/vscodeTypes';
+import { CancellationToken, LanguageModelTool } from '../../src/vscodeTypes';
+import type { PageSnapshotTool, PageSnapshotToolProperties } from '../../src/pageSnapshotTool';
 
 /* eslint-disable no-restricted-properties */
 
@@ -848,12 +849,20 @@ export enum TestRunProfileKind {
 class MarkdownString {
   readonly md: string[] = [];
 
+  constructor(value: string) {
+    this.md.push(value);
+  }
+
   appendMarkdown(md: string) {
     this.md.push(md);
   }
 
   render(): string {
     return this.md.join('\n').replace(/&nbsp;/g, ' ');
+  }
+
+  get value() {
+    return this.render();
   }
 }
 
@@ -901,6 +910,50 @@ type HoverProvider = {
   provideHover?(document: TextDocument, position: Position, token: CancellationToken): void
 };
 
+class LM {
+  private _toolProviders = new Map<string, LanguageModelTool<unknown>>();
+  registerTool(name: string, tool: LanguageModelTool<unknown>) {
+    this._toolProviders.set(name, tool);
+    return disposable;
+  }
+
+  async invokePageSnapshotTool(input: PageSnapshotToolProperties) {
+    const tool = this._toolProviders.get('playwright_pageSnapshot') as PageSnapshotTool;
+    const { invocationMessage, confirmationMessages } = await tool.prepareInvocation({ input, toolInvocationToken: undefined });
+    const { content } = await tool.invoke({ input, toolInvocationToken: undefined }, new CancellationTokenSource().token);
+
+    const result: { confirmation?: string, invocation?: string, content: string } = {
+      content: content.join('\n')
+    };
+
+    if (confirmationMessages) {
+      result.confirmation = confirmationMessages.title;
+      if (typeof confirmationMessages.message === 'string')
+        result.confirmation += ' ' + confirmationMessages.message;
+      else if (confirmationMessages.message)
+        result.confirmation += ' ' + confirmationMessages.message.value;
+    }
+
+    if (typeof invocationMessage === 'string')
+      result.invocation = invocationMessage;
+    else if (invocationMessage)
+      result.invocation = invocationMessage.value;
+
+    return result;
+  }
+}
+
+class LanguageModelTextPart {
+  constructor(readonly message: string) {}
+}
+
+class LanguageModelToolResult {
+  constructor(readonly parts: LanguageModelTextPart[]) {}
+  get content() {
+    return this.parts.map(p => p.message);
+  }
+}
+
 export class VSCode {
   isUnderTest = true;
   CancellationTokenSource = CancellationTokenSource;
@@ -917,10 +970,13 @@ export class VSCode {
   TestMessageStackFrame = TestMessageStackFrame;
   TestRunProfileKind = TestRunProfileKind;
   TestRunRequest = TestRunRequest;
+  LanguageModelToolResult = LanguageModelToolResult;
+  LanguageModelTextPart = LanguageModelTextPart;
   Uri = Uri;
   UIKind = UIKind;
   commands: any = {};
   debug: Debug;
+  lm: LM;
   languages: any = {};
   tests: any = {};
   window: any = {};
@@ -997,6 +1053,7 @@ export class VSCode {
       this.commandLog.push(name);
     };
     this.debug = new Debug();
+    this.lm = new LM();
     this.context.subscriptions.push(
         this.debug,
         this._didChangeActiveTextEditor,

@@ -31,6 +31,7 @@ import { registerTerminalLinkProvider } from './terminalLinkProvider';
 import { RunHooks, TestConfig } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
+import { registerPageSnapshotTool } from './pageSnapshotTool';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -53,7 +54,7 @@ export class Extension implements RunHooks {
   private _disposables: vscodeTypes.Disposable[] = [];
 
   // Global test item map.
-  private _testTree: TestTree;
+  _testTree: TestTree;
 
   private _testController: vscodeTypes.TestController;
   private _workspaceObserver: WorkspaceObserver;
@@ -244,6 +245,7 @@ export class Extension implements RunHooks {
       this._diagnostics,
       this._treeItemObserver,
       registerTerminalLinkProvider(this._vscode),
+      registerPageSnapshotTool(this, this._vscode),
     ];
     const fileSystemWatchers = [
       // Glob parser does not supported nested group, hence multiple watchers.
@@ -334,7 +336,7 @@ export class Extension implements RunHooks {
     })) as NodeJS.ProcessEnv;
   }
 
-  private async _handleTestRun(isDebug: boolean, request: vscodeTypes.TestRunRequest, cancellationToken?: vscodeTypes.CancellationToken) {
+  async _handleTestRun(isDebug: boolean, request: vscodeTypes.TestRunRequest, cancellationToken?: vscodeTypes.CancellationToken) {
     // Never run tests concurrently.
     if (this._testRun && !request.continuous)
       return;
@@ -601,6 +603,7 @@ export class Extension implements RunHooks {
   private async _markTestRunFailed(testRun: vscodeTypes.TestRun, testItem: vscodeTypes.TestItem, result: reporterTypes.TestResult) {
     let aiContext: string | undefined;
     const snapshot = result.attachments.find(a => a.name === 'pageSnapshot');
+    (testItem as any)[pageSnapshotPathSymbol] = snapshot?.path;
     if (snapshot && snapshot.path) {
       const contents = await this._vscode.workspace.fs.readFile(this._vscode.Uri.file(snapshot.path));
       aiContext = `### Page Snapshot at Failure\n\n${contents.toString()}`; // cannot use ``` codeblocks, vscode markdown does not support it
@@ -906,3 +909,5 @@ function ancestorProject(test: reporterTypes.TestCase): reporterTypes.FullProjec
 }
 
 const traceUrlSymbol = Symbol('traceUrl');
+export const pageSnapshotPathSymbol = Symbol('snapshotPath');
+export const testRunOptionsSymbol = Symbol('testRunOptions');
