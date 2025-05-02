@@ -32,6 +32,7 @@ import { registerTerminalLinkProvider } from './terminalLinkProvider';
 import { RunHooks, TestConfig, ErrorContext } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
+import { PlaywrightTool } from './playwrightTool';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -263,6 +264,7 @@ export class Extension implements RunHooks {
       this._diagnostics,
       this._treeItemObserver,
       registerTerminalLinkProvider(this._vscode),
+      vscode.lm.registerTool('playwright', new PlaywrightTool(this._vscode)),
     ];
     const fileSystemWatchers = [
       // Glob parser does not supported nested group, hence multiple watchers.

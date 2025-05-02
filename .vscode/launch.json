@@ -12,7 +12,7 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"${workspaceFolder}/../playwright/examples/todomvc"
+				"/Users/skn0tt/dev/tmp/generated-teams-tests"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

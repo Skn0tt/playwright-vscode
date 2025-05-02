@@ -21,6 +21,16 @@
   "main": "./out/extension.js",
   "l10n": "./l10n",
   "contributes": {
+    "languageModelTools": [
+      {
+        "name": "playwright",
+        "displayName": "Playwright",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "playwright",
+        "userDescription": "Help the Model with generating good Playwright tests.",
+        "modelDescription": "This tool provides help with generation Playwright tests."
+      }
+    ],
     "commands": [
       {
         "category": "Test",
