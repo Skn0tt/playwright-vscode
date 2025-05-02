@@ -22,19 +22,9 @@ export class PlaywrightTool implements LanguageModelTool<{}> {
     return {
       content: [
         new this.vscode.LanguageModelTextPart(`
-# Generating Playwright Tests from Test Flow
-To generate a good Playwright test based on a test flow, you first need to verify the flow by executing it in a real browser.
-If you don't yet know what URL is used for testing, search the repository for it. Then open up that page in a browser and execute the test flow.
-Don't write code, use the real browser.
-After executing the test flow, let the user know if the page matches the flow.
-If it doesn't, tell me what's off.
-If it does, formulate an outline for a Playwright test that executes the test flow.
-Lay out the actions and assertions, think about what makes sense to assert.
-Send the user a condensed outline of that.
+Please verify the test flow by executing it. Don't write code, use the real browser. After executing the test flow, please let me know if the page matches the flow. If it doesn't, tell me what's off. If it does, formulate an outline for a Playwright test that executes the test flow. Lay out the actions and assertions, think about what makes sense to assert. Send me a condensed outline of that.
 
-After sending the outline, generate Playwright code for the test and add it to the repository.
-The test should be in the same format as the other tests in the repository.
-Keep in mind that automated tests are a little different from the test flow written for humans. Here are some things to consider:
+After sending me the outline, generate Playwright code for the test and add it to my repository. The test should be in the same format as the other tests in the repository. Keep in mind that automated tests are a little different from the test flow written for humans. Here are some things to consider:
 
 - If the test flow asks you to check if something is visible, also test some of the contents using toMatchAriaSnapshot.
 - \`toMatchAriaSnapshot\` doesn't support the \`generic\` role - just omit these elements from the expected snapshot.
