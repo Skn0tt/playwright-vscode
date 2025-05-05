@@ -22,7 +22,7 @@ export class PlaywrightTool implements LanguageModelTool<{}> {
     return {
       content: [
         new this.vscode.LanguageModelTextPart(`
-Please verify the test flow by executing it. Don't write code, use the real browser. After executing the test flow, please let me know if the page matches the flow. If it doesn't, tell me what's off. If it does, formulate an outline for a Playwright test that executes the test flow. Lay out the actions and assertions, think about what makes sense to assert. Send me a condensed outline of that.
+Don't write any code before you have verified the test flow by executing it in the browser. After executing the test flow, please let me know if the page matches the flow. If it doesn't, tell me what's off. If it does, formulate an outline for a Playwright test that executes the test flow. Lay out the actions and assertions, think about what makes sense to assert. Send me a condensed outline of that.
 
 After sending me the outline, generate Playwright code for the test and add it to my repository. The test should be in the same format as the other tests in the repository. Keep in mind that automated tests are a little different from the test flow written for humans. Here are some things to consider:
 
@@ -31,7 +31,7 @@ After sending me the outline, generate Playwright code for the test and add it t
 - Don't add multiple branches to the page, you can expect the page to look the same every time.
 - Playwright automatically waits for elements before interacting with them, so you don't need to check visibility before clicking or typing.
 - Add section comments to the test that reference the test flow step numbers.
-- After writing the test, iterate until it passes using the run_test tool.
+- After writing the test, iterate until it passes using the run test tool. Do not use the terminal tool for it, as you won't be able to see errors.
         `)
       ]
     };
