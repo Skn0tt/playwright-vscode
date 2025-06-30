@@ -23,16 +23,8 @@ import * as vscodeTypes from './vscodeTypes';
 import * as reporterTypes from './upstream/reporter';
 import { TeleReporterReceiver } from './upstream/teleReceiver';
 
-export class ReporterServer {
-  private _clientSocketPromise: Promise<WebSocket>;
-  private _clientSocketCallback!: (socket: WebSocket) => void;
+abstract class BaseReporterServer {
   private _wsServer: WebSocketServer | undefined;
-  private _vscode: vscodeTypes.VSCode;
-
-  constructor(vscode: vscodeTypes.VSCode) {
-    this._vscode = vscode;
-    this._clientSocketPromise = new Promise(f => this._clientSocketCallback = f);
-  }
 
   async env() {
     const wsEndpoint = await this._listen();
@@ -60,21 +52,68 @@ export class ReporterServer {
     });
 
     const wsServer = new WebSocketServer({ server, path });
-    wsServer.on('connection', async socket => this._clientSocketCallback(socket));
+    wsServer.on('connection', socket => {
+      const transport: ConnectionTransport = {
+        send: function(message): void {
+          if (socket.readyState !== WebSocket.CLOSING)
+            socket.send(JSON.stringify(message));
+        },
+
+        isClosed() {
+          return socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING;
+        },
+
+        close: () => {
+          socket.close();
+        }
+      };
+
+      socket.on('message', (message: string) => {
+        transport.onmessage?.(JSON.parse(Buffer.from(message).toString()));
+      });
+      socket.on('close', () => {
+        transport.onclose?.();
+      });
+      socket.on('error', () => {
+        transport.onclose?.();
+      });
+
+      this.onTransport(transport);
+    });
     this._wsServer = wsServer;
 
     return wsEndpoint;
   }
 
-  private _close() {
+  close() {
+    console.trace('Closing reporter server');
     this._wsServer?.close();
+  }
+
+  protected abstract onTransport(transport: ConnectionTransport): void;
+}
+
+export class TestCLIReporterServer extends BaseReporterServer {
+  private _transportPromise: Promise<ConnectionTransport>;
+  private _transportCallback!: (socket: ConnectionTransport) => void;
+
+  constructor() {
+    super();
+    this._transportPromise = new Promise(f => this._transportCallback = f);
   }
 
   async wireTestListener(listener: reporterTypes.ReporterV2, token: vscodeTypes.CancellationToken) {
     let timeout: NodeJS.Timeout | undefined;
-    const transport = await this._waitForTransport(token);
+    const transport = await Promise.race([
+      this._transportPromise,
+      new Promise<'cancellationRequested'>(f => token.onCancellationRequested(() => { this.close(); f('cancellationRequested'); }))
+    ]);
     if (transport === 'cancellationRequested')
       return;
+
+    transport.onclose = () => {
+      this.close();
+    };
 
     const killTestProcess = () => {
       if (!transport.isClosed()) {
@@ -111,41 +150,28 @@ export class ReporterServer {
       clearTimeout(timeout);
   }
 
-  private async _waitForTransport(token: vscodeTypes.CancellationToken): Promise<ConnectionTransport | 'cancellationRequested'> {
-    const socket = await Promise.race([
-      this._clientSocketPromise,
-      new Promise<'cancellationRequested'>(f => token.onCancellationRequested(() => { this._close(); f('cancellationRequested'); }))
-    ]);
-    if (socket === 'cancellationRequested')
-      return 'cancellationRequested';
+  protected onTransport(transport: ConnectionTransport): void {
+    this._transportCallback(transport);
+  }
+}
 
-    const transport: ConnectionTransport = {
-      send: function(message): void {
-        if (socket.readyState !== WebSocket.CLOSING)
-          socket.send(JSON.stringify(message));
-      },
+export class TerminalReporterServer extends BaseReporterServer {
+  constructor(private readonly _onTerminalRunStart: (onClose: Promise<void>) => reporterTypes.ReporterV2) {
+    super();
+  }
 
-      isClosed() {
-        return socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING;
-      },
+  protected async onTransport(transport: ConnectionTransport) {
+    const listener = this._onTerminalRunStart(new Promise(f => transport.onclose = f));
+    const teleReceiver = new TeleReporterReceiver(listener, {
+      mergeProjects: true,
+      mergeTestCases: true,
+      resolvePath: (rootDir: string, relativePath: string) => path.join(rootDir, relativePath),
+    });
 
-      close: () => {
-        socket.close();
-        this._wsServer?.close();
-      }
+    transport.onmessage = message => {
+      if (message.method === 'onEnd')
+        transport.close();
+      void teleReceiver.dispatch(message as any);
     };
-
-    socket.on('message', (message: string) => {
-      transport.onmessage?.(JSON.parse(Buffer.from(message).toString()));
-    });
-    socket.on('close', () => {
-      this._wsServer?.close();
-      transport.onclose?.();
-    });
-    socket.on('error', () => {
-      this._wsServer?.close();
-      transport.onclose?.();
-    });
-    return transport;
   }
 }

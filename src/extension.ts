@@ -32,6 +32,7 @@ import { registerTerminalLinkProvider } from './terminalLinkProvider';
 import { RunHooks, TestConfig, ErrorContext } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
+import { TerminalReporterServer } from './reporterServer';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -81,6 +82,7 @@ export class Extension implements RunHooks {
   private _watchFilesBatch?: vscodeTypes.TestItem[];
   private _watchItemsBatch?: vscodeTypes.TestItem[];
   overridePlaywrightVersion: number | null = null;
+  private _reporterServer: TerminalReporterServer;
 
   constructor(vscode: vscodeTypes.VSCode, context: vscodeTypes.ExtensionContext) {
     this._vscode = vscode;
@@ -106,6 +108,7 @@ export class Extension implements RunHooks {
     this._settingsModel = new SettingsModel(vscode, context);
     this._reusedBrowser = new ReusedBrowser(this._vscode, this._settingsModel, this._envProvider.bind(this));
     this._debugHighlight = new DebugHighlight(vscode, this._reusedBrowser);
+    this._reporterServer = new TerminalReporterServer(this._handleTerminalRun.bind(this));
     this._models = new TestModelCollection(vscode, {
       context,
       playwrightTestLog: this._playwrightTestLog,
@@ -271,6 +274,16 @@ export class Extension implements RunHooks {
     ];
     this._disposables.push(...fileSystemWatchers);
 
+    try {
+      this._context.environmentVariableCollection.persistent = false;
+      this._context.environmentVariableCollection.description = 'Playwright Test Reporter';
+
+      // TODO: use stable port, so that terminal doesn't go out of sync
+      const { PW_TEST_REPORTER, PW_TEST_REPORTER_WS_ENDPOINT } = await this._reporterServer.env();
+      this._context.environmentVariableCollection.replace('PW_TEST_REPORTER', PW_TEST_REPORTER, { applyAtProcessCreation: true });
+      this._context.environmentVariableCollection.replace('PW_TEST_REPORTER_WS_ENDPOINT', PW_TEST_REPORTER_WS_ENDPOINT, { applyAtProcessCreation: true });
+    } catch {}
+
     const rebuildModelForConfig = (uri: vscodeTypes.Uri) => {
       // TODO: parse .gitignore
       if (uriToPath(uri).includes('node_modules'))
@@ -351,6 +364,19 @@ export class Extension implements RunHooks {
     return Object.fromEntries(Object.entries(env).map(entry => {
       return typeof entry[1] === 'string' ? entry : [entry[0], JSON.stringify(entry[1])];
     })) as NodeJS.ProcessEnv;
+  }
+
+  private _handleTerminalRun(onClose: Promise<void>) {
+    const request = new this._vscode.TestRunRequest();
+    const testRun = this._testController.createTestRun(request);
+    this._testRun = testRun;
+    void onClose.then(() => {
+      testRun.end();
+      this._testRun = undefined;
+    });
+
+    const model = this._models.enabledModels()[0];
+    return this._getTestListener(this._testRun, undefined, new Set(), model, 'run', false);
   }
 
   private async _handleTestRun(isDebug: boolean, request: vscodeTypes.TestRunRequest, cancellationToken?: vscodeTypes.CancellationToken) {
@@ -519,11 +545,38 @@ export class Extension implements RunHooks {
     model: TestModel,
     mode: 'run' | 'debug' | 'watch',
     enqueuedSingleTest: boolean) {
+    const testListener = this._getTestListener(
+        testRun,
+        testItemForGlobalErrors,
+        testFailures,
+        model,
+        mode,
+        enqueuedSingleTest
+    );
 
-    let browserDoesNotExist = false;
+    if (mode === 'debug') {
+      await model.debugTests(request, testListener, testRun.token);
+    } else {
+      // Force trace viewer update to surface check version errors.
+      await this._models.selectedModel()?.updateTraceViewer(mode === 'run')?.willRunTests();
+      await model.runTests(request, testListener, testRun.token);
+    }
 
-    const testListener: reporterTypes.ReporterV2 = {
+    if (testListener.browserDoesNotExist)
+      await installBrowsers(this._vscode, model);
+  }
+
+  private _getTestListener(
+    testRun: vscodeTypes.TestRun,
+    testItemForGlobalErrors: vscodeTypes.TestItem | undefined,
+    testFailures: Set<vscodeTypes.TestItem>,
+    model: TestModel,
+    mode: 'run' | 'debug' | 'watch',
+    enqueuedSingleTest: boolean): reporterTypes.ReporterV2 & { browserDoesNotExist: boolean } {
+    const listener = {
       ...this._errorReportingListener(testRun, testItemForGlobalErrors),
+
+      browserDoesNotExist: false,
 
       onBegin: (rootSuite: reporterTypes.Suite) => {
         model.updateFromRunningProjects(rootSuite.suites);
@@ -553,7 +606,7 @@ export class Extension implements RunHooks {
 
       onTestEnd: (test: reporterTypes.TestCase, result: reporterTypes.TestResult) => {
         if (result.errors.find(e => e.message?.includes(`Error: browserType.launch: Executable doesn't exist`)))
-          browserDoesNotExist = true;
+          listener.browserDoesNotExist = true;
 
         this._testItemUnderDebug = undefined;
         this._activeSteps.clear();
@@ -618,16 +671,7 @@ export class Extension implements RunHooks {
       },
     };
 
-    if (mode === 'debug') {
-      await model.debugTests(request, testListener, testRun.token);
-    } else {
-      // Force trace viewer update to surface check version errors.
-      await this._models.selectedModel()?.updateTraceViewer(mode === 'run')?.willRunTests();
-      await model.runTests(request, testListener, testRun.token);
-    }
-
-    if (browserDoesNotExist)
-      await installBrowsers(this._vscode, model);
+    return listener;
   }
 
   private _errorReportingListener(testRun: vscodeTypes.TestRun, testItemForGlobalErrors?: vscodeTypes.TestItem) {
