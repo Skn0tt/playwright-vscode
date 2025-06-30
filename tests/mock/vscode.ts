@@ -905,6 +905,13 @@ type HoverProvider = {
   provideHover?(document: TextDocument, position: Position, token: CancellationToken): void
 };
 
+class EnvironmentVariableCollection {
+  env: Record<string, string> = {};
+  replace(variable: string, value: string) {
+    this.env[variable] = value;
+  }
+}
+
 export class VSCode {
   isUnderTest = true;
   CancellationTokenSource = CancellationTokenSource;
@@ -960,7 +967,7 @@ export class VSCode {
   readonly fsWatchers = new Set<FileSystemWatcher>();
   readonly warnings: string[] = [];
   readonly errors: string[] = [];
-  readonly context: { subscriptions: any[]; extensionUri: Uri; workspaceState: any };
+  readonly context: { subscriptions: any[]; extensionUri: Uri; workspaceState: any, environmentVariableCollection: EnvironmentVariableCollection };
   readonly extensions: any[] = [];
   private _webviewProviders = new Map<string, any>();
   private _browser: Browser;
@@ -983,7 +990,7 @@ export class VSCode {
       get: (key: string) => workspaceStateStorage.get(key),
       update: (key: string, value: any) => workspaceStateStorage.set(key, value)
     };
-    this.context = { subscriptions: [], extensionUri: Uri.file(baseDir), workspaceState };
+    this.context = { subscriptions: [], extensionUri: Uri.file(baseDir), workspaceState, environmentVariableCollection: new EnvironmentVariableCollection() };
     this._browser = browser;
     (globalThis as any).__logForTest = (message: any) => this.connectionLog.push(message);
     const commands = new Map<string, () => Promise<void>>();
