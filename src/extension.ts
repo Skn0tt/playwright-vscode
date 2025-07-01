@@ -32,7 +32,7 @@ import { registerTerminalLinkProvider } from './terminalLinkProvider';
 import { RunHooks, TestConfig, ErrorContext } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
-import { TerminalReporterServer } from './reporterServer';
+import { TerminalReporterListener, TerminalReporterServer } from './reporterServer';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -366,17 +366,22 @@ export class Extension implements RunHooks {
     })) as NodeJS.ProcessEnv;
   }
 
-  private _handleTerminalRun(onClose: Promise<void>) {
-    const request = new this._vscode.TestRunRequest();
+  private _handleTerminalRun(): TerminalReporterListener | undefined {
+    // Never run tests concurrently.
+    if (this._testRun)
+      return;
+
+    const request = new this._vscode.TestRunRequest(undefined, undefined, this._runProfile, false, true);
     const testRun = this._testController.createTestRun(request);
     this._testRun = testRun;
-    void onClose.then(() => {
-      testRun.end();
-      this._testRun = undefined;
-    });
+    return {
+      ...this._getTestListener(this._testRun, undefined, new Set(), undefined, 'run', false),
 
-    const model = this._models.enabledModels()[0];
-    return this._getTestListener(this._testRun, undefined, new Set(), model, 'run', false);
+      onConnectionClose: () => {
+        testRun.end();
+        this._testRun = undefined;
+      }
+    };
   }
 
   private async _handleTestRun(isDebug: boolean, request: vscodeTypes.TestRunRequest, cancellationToken?: vscodeTypes.CancellationToken) {
@@ -570,16 +575,16 @@ export class Extension implements RunHooks {
     testRun: vscodeTypes.TestRun,
     testItemForGlobalErrors: vscodeTypes.TestItem | undefined,
     testFailures: Set<vscodeTypes.TestItem>,
-    model: TestModel,
+    model: TestModel | undefined,
     mode: 'run' | 'debug' | 'watch',
-    enqueuedSingleTest: boolean): reporterTypes.ReporterV2 & { browserDoesNotExist: boolean } {
-    const listener = {
+    enqueuedSingleTest: boolean) {
+    const listener: reporterTypes.ReporterV2 & { browserDoesNotExist: boolean } = {
       ...this._errorReportingListener(testRun, testItemForGlobalErrors),
 
       browserDoesNotExist: false,
 
       onBegin: (rootSuite: reporterTypes.Suite) => {
-        model.updateFromRunningProjects(rootSuite.suites);
+        model?.updateFromRunningProjects(rootSuite.suites);
         for (const test of rootSuite.allTests()) {
           const testItem = this._testTree.testItemForTest(test);
           if (testItem)

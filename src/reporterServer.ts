@@ -155,13 +155,80 @@ export class TestCLIReporterServer extends BaseReporterServer {
   }
 }
 
-export class TerminalReporterServer extends BaseReporterServer {
-  constructor(private readonly _onTerminalRunStart: (onClose: Promise<void>) => reporterTypes.ReporterV2) {
-    super();
+export interface TerminalReporterListener extends reporterTypes.ReporterV2 {
+  onConnectionClose(): void;
+}
+
+export class TerminalReporterServer {
+  private _wsServer: WebSocketServer | undefined;
+
+  constructor(
+    private readonly _onTerminalRunStart: () => TerminalReporterListener | undefined
+  ) {
   }
 
-  protected async onTransport(transport: ConnectionTransport) {
-    const listener = this._onTerminalRunStart(new Promise(f => transport.onclose = f));
+  async env() {
+    const wsEndpoint = await this._listen();
+    return {
+      PW_TEST_REPORTER: require.resolve('./oopReporter'),
+      PW_TEST_REPORTER_WS_ENDPOINT: wsEndpoint,
+    };
+  }
+
+  private async _listen(): Promise<string> {
+    const server = http.createServer((_, response) => response.end());
+    server.on('error', error => console.error(error));
+
+    const wsPath = '/' + createGuid();
+    const wsEndpoint = await new Promise<string>((resolve, reject) => {
+      server.listen(0, () => {
+        const address = server.address();
+        if (!address) {
+          reject(new Error('Could not bind server socket'));
+          return;
+        }
+        const wsEndpoint = typeof address === 'string' ? `${address}${wsPath}` : `ws://127.0.0.1:${address.port}${wsPath}`;
+        resolve(wsEndpoint);
+      }).on('error', reject);
+    });
+
+    const wsServer = new WebSocketServer({ server, path: wsPath });
+    wsServer.on('connection', socket => this._onConnection(socket));
+    this._wsServer = wsServer;
+
+    return wsEndpoint;
+  }
+
+  private async _onConnection(socket: WebSocket) {
+    const transport: ConnectionTransport = {
+      send: function(message): void {
+        if (socket.readyState !== WebSocket.CLOSING)
+          socket.send(JSON.stringify(message));
+      },
+
+      isClosed() {
+        return socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING;
+      },
+
+      close: () => {
+        socket.close();
+      }
+    };
+
+    socket.on('message', (message: string) => {
+      transport.onmessage?.(JSON.parse(Buffer.from(message).toString()));
+    });
+    socket.on('close', () => {
+      transport.onclose?.();
+    });
+    socket.on('error', () => {
+      transport.onclose?.();
+    });
+
+    const listener = this._onTerminalRunStart();
+    if (!listener)
+      return;
+
     const teleReceiver = new TeleReporterReceiver(listener, {
       mergeProjects: true,
       mergeTestCases: true,
@@ -173,5 +240,14 @@ export class TerminalReporterServer extends BaseReporterServer {
         transport.close();
       void teleReceiver.dispatch(message as any);
     };
+
+    transport.onclose = () => {
+      listener.onConnectionClose();
+    };
+  }
+
+  close() {
+    console.trace('Closing reporter server');
+    this._wsServer?.close();
   }
 }
