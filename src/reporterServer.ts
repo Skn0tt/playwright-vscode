@@ -155,15 +155,11 @@ export class TestCLIReporterServer extends BaseReporterServer {
   }
 }
 
-export interface TerminalReporterListener extends reporterTypes.ReporterV2 {
-  onConnectionClose(): void;
-}
-
 export class TerminalReporterServer {
   private _wsServer: WebSocketServer | undefined;
 
   constructor(
-    private readonly _onTerminalRunStart: () => TerminalReporterListener | undefined
+    private readonly _onTerminalRunStart: () => { listener: reporterTypes.ReporterV2, onClose(): void } | undefined
   ) {
   }
 
@@ -229,7 +225,7 @@ export class TerminalReporterServer {
     if (!listener)
       return;
 
-    const teleReceiver = new TeleReporterReceiver(listener, {
+    const teleReceiver = new TeleReporterReceiver(listener.listener, {
       mergeProjects: true,
       mergeTestCases: true,
       resolvePath: (rootDir: string, relativePath: string) => path.join(rootDir, relativePath),
@@ -242,7 +238,7 @@ export class TerminalReporterServer {
     };
 
     transport.onclose = () => {
-      listener.onConnectionClose();
+      listener.onClose();
     };
   }
 

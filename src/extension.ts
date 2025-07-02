@@ -32,7 +32,7 @@ import { registerTerminalLinkProvider } from './terminalLinkProvider';
 import { RunHooks, TestConfig, ErrorContext } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
-import { TerminalReporterListener, TerminalReporterServer } from './reporterServer';
+import { TerminalReporterServer } from './reporterServer';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -366,7 +366,7 @@ export class Extension implements RunHooks {
     })) as NodeJS.ProcessEnv;
   }
 
-  private _handleTerminalRun(): TerminalReporterListener | undefined {
+  private _handleTerminalRun() {
     // Never run tests concurrently.
     if (this._testRun)
       return;
@@ -375,12 +375,11 @@ export class Extension implements RunHooks {
     const testRun = this._testController.createTestRun(request);
     this._testRun = testRun;
     return {
-      ...this._getTestListener(this._testRun, undefined, new Set(), undefined, 'run', false),
-
-      onConnectionClose: () => {
+      listener: this._getTestListener(this._testRun, undefined, new Set(), undefined, 'run', false),
+      onClose: () => {
         testRun.end();
         this._testRun = undefined;
-      }
+      },
     };
   }
 
