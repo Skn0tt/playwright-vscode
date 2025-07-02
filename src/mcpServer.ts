@@ -40,6 +40,8 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
 
   private _transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
+  private _path = '/' + crypto.randomUUID();
+
   constructor(private readonly _vscode: vscodeTypes.VSCode, private readonly _delegate: MCPServerDelegate) {}
 
   provideMcpServerDefinitions(token: vscodeTypes.CancellationToken) {
@@ -51,7 +53,7 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
   async resolveMcpServerDefinition(server: vscodeTypes.McpServerDefinition, token: vscodeTypes.CancellationToken) {
     if (server instanceof this._vscode.McpHttpServerDefinition) {
       const address = await this._listen();
-      server.uri = this._vscode.Uri.parse(address);
+      server.uri = this._vscode.Uri.parse(address + this._path);
       return server;
     }
 
@@ -81,10 +83,12 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
   }
 
   private _onRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    if (req.method === 'POST')
-      return await this._handlePostRequest(req, res);
-    else if (req.method === 'GET' || req.method === 'DELETE')
-      return await this._handleSessionRequest(req, res);
+    if (req.url === this._path) {
+      if (req.method === 'POST')
+        return await this._handlePostRequest(req, res);
+      else if (req.method === 'GET' || req.method === 'DELETE')
+        return await this._handleSessionRequest(req, res);
+    }
 
     res.statusCode = 404;
     res.end();

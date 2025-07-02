@@ -44,7 +44,7 @@ test('test tree', async ({ activate }) => {
   const result = await client.callTool({ name: 'getPlaywrightTestTree' });
   expect(result.content).toEqual([]);
   expect(result.structuredContent).toEqual({
-    children: [
+    tests: [
       {
         id: 'root',
         name: 'Playwright Tests',
