@@ -32,6 +32,7 @@ import { registerTerminalLinkProvider } from './terminalLinkProvider';
 import { RunHooks, TestConfig, ErrorContext } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
+import { MCPServer } from './mcpServer';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -59,6 +60,8 @@ export class Extension implements RunHooks {
   private _testController: vscodeTypes.TestController;
   private _workspaceObserver: WorkspaceObserver;
   private _testItemUnderDebug: vscodeTypes.TestItem | undefined;
+
+  private _mcpServer: MCPServer;
 
   private _activeSteps = new Map<reporterTypes.TestStep, StepInfo>();
   private _completedSteps = new Map<reporterTypes.TestStep, StepInfo>();
@@ -106,6 +109,7 @@ export class Extension implements RunHooks {
     this._settingsModel = new SettingsModel(vscode, context);
     this._reusedBrowser = new ReusedBrowser(this._vscode, this._settingsModel, this._envProvider.bind(this));
     this._debugHighlight = new DebugHighlight(vscode, this._reusedBrowser);
+    this._mcpServer = new MCPServer(this._vscode);
     this._models = new TestModelCollection(vscode, {
       context,
       playwrightTestLog: this._playwrightTestLog,
@@ -263,6 +267,7 @@ export class Extension implements RunHooks {
       this._diagnostics,
       this._treeItemObserver,
       registerTerminalLinkProvider(this._vscode),
+      vscode.lm.registerMcpServerDefinitionProvider('@playwright/test', this._mcpServer),
     ];
     const fileSystemWatchers = [
       // Glob parser does not supported nested group, hence multiple watchers.
