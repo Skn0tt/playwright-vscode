@@ -21,6 +21,18 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport';
+import { z } from 'zod';
+
+const testTreeOutput = z.object({
+  tests: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+  }))
+});
+
+interface MCPServerDelegate {
+  getTestTree(): Promise<z.infer<typeof testTreeOutput>>;
+}
 
 export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
   private _server = http.createServer((req, res) => this._onRequest(req, res));
@@ -28,7 +40,7 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
 
   private _transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
-  constructor(private readonly _vscode: vscodeTypes.VSCode) {}
+  constructor(private readonly _vscode: vscodeTypes.VSCode, private readonly _delegate: MCPServerDelegate) {}
 
   provideMcpServerDefinitions(token: vscodeTypes.CancellationToken) {
     return [
@@ -156,14 +168,11 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
       version: '0.0.0'
     });
 
-    server.tool('ping', () => {
+    server.registerTool('getPlaywrightTestTree', { outputSchema: testTreeOutput.shape }, async () => {
+      const tree = await this._delegate.getTestTree();
       return {
-        content: [
-          {
-            type: 'text',
-            text: 'pong'
-          }
-        ]
+        content: [],
+        structuredContent: tree
       };
     });
 

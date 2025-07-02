@@ -17,7 +17,7 @@
 import { expect, test } from './utils';
 
 
-test('should provide MCP server', async ({ activate }) => {
+test('tool list', async ({ activate }) => {
   const { vscode } = await activate({
     'playwright.config.js': `module.exports = { testDir: 'tests' }`,
     'tests/test.spec.ts': `
@@ -28,5 +28,27 @@ test('should provide MCP server', async ({ activate }) => {
 
   const client = await vscode.connectToMCP();
   const tools = await client.listTools();
-  expect(tools.tools.map(t => t.name)).toEqual(['ping']);
+  expect(tools.tools.map(t => t.name)).toEqual(['getPlaywrightTestTree']);
+});
+
+test('test tree', async ({ activate }) => {
+  const { vscode } = await activate({
+    'playwright.config.js': `module.exports = { testDir: 'tests' }`,
+    'tests/test.spec.ts': `
+      import { test } from '@playwright/test';
+      test('one', async () => {});
+    `,
+  });
+
+  const client = await vscode.connectToMCP();
+  const result = await client.callTool({ name: 'getPlaywrightTestTree' });
+  expect(result.content).toEqual([]);
+  expect(result.structuredContent).toEqual({
+    children: [
+      {
+        id: 'root',
+        name: 'Playwright Tests',
+      }
+    ]
+  });
 });
