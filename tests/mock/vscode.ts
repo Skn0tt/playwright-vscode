@@ -23,6 +23,8 @@ import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import which from 'which';
 import { Browser, Page } from '@playwright/test';
 import { CancellationToken } from '../../src/vscodeTypes';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client as McpClient } from '@modelcontextprotocol/sdk/client/index.js';
 
 /* eslint-disable no-restricted-properties */
 
@@ -905,6 +907,22 @@ type HoverProvider = {
   provideHover?(document: TextDocument, position: Position, token: CancellationToken): void
 };
 
+class McpHttpServerDefinition {
+  constructor(readonly label: string, public uri: Uri) {}
+}
+
+interface McpServerDefinitionProvider {
+  provideMcpServerDefinitions(token: CancellationToken): Promise<McpHttpServerDefinition[]>;
+  resolveMcpServerDefinition(server: McpHttpServerDefinition, token: CancellationToken): Promise<McpHttpServerDefinition>;
+}
+
+class LM {
+  mcpServerDefinitionProviders: Record<string, McpServerDefinitionProvider> = {};
+  registerMcpServerDefinitionProvider(name: string, provider: McpServerDefinitionProvider) {
+    this.mcpServerDefinitionProviders[name] = provider;
+  }
+}
+
 export class VSCode {
   isUnderTest = true;
   CancellationTokenSource = CancellationTokenSource;
@@ -921,6 +939,7 @@ export class VSCode {
   TestMessageStackFrame = TestMessageStackFrame;
   TestRunProfileKind = TestRunProfileKind;
   TestRunRequest = TestRunRequest;
+  McpHttpServerDefinition = McpHttpServerDefinition;
   Uri = Uri;
   UIKind = UIKind;
   commands: any = {};
@@ -939,6 +958,7 @@ export class VSCode {
   };
   ProgressLocation = { Notification: 1 };
   ViewColumn = { Active: -1 };
+  lm: LM;
 
   private _didChangeActiveTextEditor = new EventEmitter();
   private _didChangeVisibleTextEditors = new EventEmitter();
@@ -1195,6 +1215,8 @@ export class VSCode {
       writeText: async (text: string) => this._clipboardText = text,
       readText: async () => this._clipboardText,
     };
+
+    this.lm = new LM();
   }
 
   async activate() {
@@ -1345,6 +1367,19 @@ export class VSCode {
       result.push(`    ${checked ? '[x]' : '[ ]'} ${name}`);
     }
     return result.join('\n');
+  }
+
+  async connectToMCP() {
+
+    const tokenSource = new CancellationTokenSource();
+    const provider = this.lm.mcpServerDefinitionProviders['@playwright/test'];
+    const [definition] = await provider.provideMcpServerDefinitions(tokenSource.token);
+    const resolvedDefinition = await provider.resolveMcpServerDefinition(definition, tokenSource.token);
+
+    const client = new McpClient({ name: 'testing', version: '0.0.0' });
+    const transport = new StreamableHTTPClientTransport(new URL(resolvedDefinition.uri.toString()));
+    await client.connect(transport);
+    return client;
   }
 }
 

@@ -32,7 +32,7 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
 
   provideMcpServerDefinitions(token: vscodeTypes.CancellationToken) {
     return [
-      new this._vscode.McpHttpServerDefinition('@playwright/test', this._vscode.Uri.parse('http://localhost:to-be-resolved'))
+      new this._vscode.McpHttpServerDefinition('@playwright/test', this._vscode.Uri.parse('http://localhost'))
     ];
   }
 
