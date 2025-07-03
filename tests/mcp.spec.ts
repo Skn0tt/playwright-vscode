@@ -32,7 +32,7 @@ test('tool list', async ({ activate }) => {
 });
 
 test('test tree', async ({ activate }) => {
-  const { vscode } = await activate({
+  const { vscode, testController } = await activate({
     'playwright.config.js': `module.exports = { testDir: 'tests' }`,
     'tests/test.spec.ts': `
       import { test } from '@playwright/test';
@@ -40,14 +40,16 @@ test('test tree', async ({ activate }) => {
     `,
   });
 
+  await testController.expandTestItems(/test.spec.ts/);
+
   const client = await vscode.connectToMCP();
   const result = await client.callTool({ name: 'getPlaywrightTestTree' });
   expect(result.content).toEqual([]);
   expect(result.structuredContent).toEqual({
     tests: [
       {
-        id: 'root',
-        name: 'Playwright Tests',
+        id: expect.any(String),
+        name: 'tests › test.spec.ts › one',
       }
     ]
   });

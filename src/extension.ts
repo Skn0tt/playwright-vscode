@@ -24,7 +24,7 @@ import { ReusedBrowser } from './reusedBrowser';
 import { SettingsModel } from './settingsModel';
 import { SettingsView } from './settingsView';
 import { TestModel, TestModelCollection, TestProject } from './testModel';
-import { configError, disabledProjectName as disabledProject, TestTree } from './testTree';
+import { configError, disabledProjectName as disabledProject, TestTree, upstreamTreeItem } from './testTree';
 import { NodeJSNotFoundError, getPlaywrightInfo, stripAnsi, stripBabelFrame, uriToPath } from './utils';
 import * as vscodeTypes from './vscodeTypes';
 import { WorkspaceChange, WorkspaceObserver } from './workspaceObserver';
@@ -33,6 +33,7 @@ import { RunHooks, TestConfig, ErrorContext } from './playwrightTestTypes';
 import { ansi2html } from './ansi2html';
 import { LocatorsView } from './locatorsView';
 import { MCPServer } from './mcpServer';
+import { TreeItem } from './upstream/testTree';
 
 const stackUtils = new StackUtils({
   cwd: '/ensure_absolute_paths'
@@ -110,8 +111,24 @@ export class Extension implements RunHooks {
     this._reusedBrowser = new ReusedBrowser(this._vscode, this._settingsModel, this._envProvider.bind(this));
     this._debugHighlight = new DebugHighlight(vscode, this._reusedBrowser);
     this._mcpServer = new MCPServer(this._vscode, {
-      async getTestTree() {
-        return { tests: [{ id: 'root', name: 'Playwright Tests' }] };
+      getTestTree: async () => {
+        const tests = [...this._testController.items].flatMap(([id, item]) => this._testTree.collectTestsInside(item)).map(upstreamTreeItem);
+        return {
+          tests: tests.map(t => {
+            const path: string[] = [];
+            const visit = (item: TreeItem) => {
+              if (item.parent)
+                visit(item.parent);
+              path.push(item.title);
+            };
+            visit(t);
+
+            return {
+              id: t.id,
+              name: path.slice(1).join(' › '),
+            };
+          })
+        };
       },
     });
     this._models = new TestModelCollection(vscode, {
