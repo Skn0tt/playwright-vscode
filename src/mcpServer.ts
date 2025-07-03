@@ -18,6 +18,7 @@ import http from 'http';
 import net from 'net';
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { TextContent } from '@modelcontextprotocol/sdk/types';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport';
@@ -181,18 +182,32 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
       version: '0.0.0'
     });
 
-    server.registerTool('getPlaywrightTestTree', { outputSchema: testTreeOutput.shape }, async () => {
+    server.registerTool('getPlaywrightTestTree', { outputSchema: testTreeOutput.shape, description: 'Get a list of all Playwright tests in the workspace' }, async () => {
       const tree = await this._delegate.getTestTree();
       return {
-        content: [],
+        content: [
+          {
+            type: 'text',
+            text: tree.tests.map(test => `- ${test.name} (${test.id})`).join('\n')
+          }
+        ],
         structuredContent: tree
       };
     });
 
-    server.registerTool('runPlaywrightTest', { inputSchema: runTestInput.shape, outputSchema: runTestOutput.shape }, async input => {
+    server.registerTool('runPlaywrightTest', { inputSchema: runTestInput.shape, outputSchema: runTestOutput.shape, description: 'Run a Playwright test' }, async input => {
       const result = await this._delegate.runTest(input);
+
+      const lines: string[] = [];
+      if (result.result === 'failed')
+        lines.push('Test failed. Use the test_failure tool to get the error message.');
+      else if (result.result === 'passed')
+        lines.push('Test passed.');
+      else
+        lines.push('Test was skipped.');
+
       return {
-        content: result.result === 'failed' ? [{ type: 'text', text: 'Test failed. You can inspect the failure using the #testFailures tool.' }] : [],
+        content: [{ type: 'text', text: lines.join('\n') }],
         structuredContent: result
       };
     });

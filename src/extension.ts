@@ -142,7 +142,7 @@ export class Extension implements RunHooks {
         const request = new this._vscode.TestRunRequest([testItem]);
         await this._handleTestRun(false, request);
         return {
-          result: testItem.status
+          result: testItem.status ?? 'failed'
         };
       },
     });
