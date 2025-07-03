@@ -38,8 +38,13 @@ test('test tree', async ({ activate }) => {
   const { vscode, testController } = await activate({
     'playwright.config.js': `module.exports = { testDir: 'tests' }`,
     'tests/test.spec.ts': `
-      import { test } from '@playwright/test';
-      test('one', async () => {});
+      import { test, expect } from '@playwright/test';
+      test('pass', async () => {
+        expect(true).toBe(true);
+      });
+      test('fail', async () => {
+        expect(true).toBe(false);
+      });
     `,
   });
 
@@ -52,14 +57,30 @@ test('test tree', async ({ activate }) => {
     tests: [
       {
         id: expect.any(String),
-        name: 'test.spec.ts › one',
+        name: 'test.spec.ts › pass',
+      },
+      {
+        id: expect.any(String),
+        name: 'test.spec.ts › fail',
       }
     ]
   });
 
-  result = await client.callTool({ name: 'runPlaywrightTest', arguments: { id: (result.structuredContent as any).tests[0].id } });
+  const passingId = (result.structuredContent as any).tests[0].id;
+  const failingId = (result.structuredContent as any).tests[1].id;
+
+  result = await client.callTool({ name: 'runPlaywrightTest', arguments: { id: passingId } });
   expect(result.content).toEqual([]);
   expect(result.structuredContent).toEqual({
     result: 'passed'
+  });
+
+  result = await client.callTool({ name: 'runPlaywrightTest', arguments: { id: failingId } });
+  expect(result.content).toEqual([{
+    type: 'text',
+    text: 'Test failed. You can inspect the failure using the #testFailures tool.',
+  }]);
+  expect(result.structuredContent).toEqual({
+    result: 'failed'
   });
 });

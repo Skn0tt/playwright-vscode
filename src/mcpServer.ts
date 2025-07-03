@@ -192,7 +192,7 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
     server.registerTool('runPlaywrightTest', { inputSchema: runTestInput.shape, outputSchema: runTestOutput.shape }, async input => {
       const result = await this._delegate.runTest(input);
       return {
-        content: [],
+        content: result.result === 'failed' ? [{ type: 'text', text: 'Test failed. You can inspect the failure using the #testFailures tool.' }] : [],
         structuredContent: result
       };
     });
