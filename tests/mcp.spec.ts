@@ -52,7 +52,7 @@ test('test tree', async ({ activate }) => {
 
   const client = await vscode.connectToMCP();
   let result = await client.callTool({ name: 'getPlaywrightTestTree' });
-  expect(result.content).toEqual([]);
+  expect(result.content).toEqual([{ type: 'text', text: expect.any(String) }]);
   expect(result.structuredContent).toEqual({
     tests: [
       {
@@ -70,7 +70,7 @@ test('test tree', async ({ activate }) => {
   const failingId = (result.structuredContent as any).tests[1].id;
 
   result = await client.callTool({ name: 'runPlaywrightTest', arguments: { id: passingId } });
-  expect(result.content).toEqual([]);
+  expect(result.content).toEqual([{ type: 'text', text: 'Test passed.' }]);
   expect(result.structuredContent).toEqual({
     result: 'passed'
   });
@@ -78,7 +78,7 @@ test('test tree', async ({ activate }) => {
   result = await client.callTool({ name: 'runPlaywrightTest', arguments: { id: failingId } });
   expect(result.content).toEqual([{
     type: 'text',
-    text: 'Test failed. You can inspect the failure using the #testFailures tool.',
+    text: 'Test failed. Use the test_failure tool to get the error message.',
   }]);
   expect(result.structuredContent).toEqual({
     result: 'failed'

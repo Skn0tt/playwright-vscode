@@ -140,9 +140,9 @@ export class Extension implements RunHooks {
           throw new Error(`Test with id "${id}" not found in the test tree.`);
 
         const request = new this._vscode.TestRunRequest([testItem]);
-        await this._handleTestRun(false, request);
+        const passed = await this._handleTestRun(false, request);
         return {
-          result: testItem.status ?? 'failed'
+          result: passed ? 'passed' : 'failed',
         };
       },
     });
@@ -425,16 +425,18 @@ export class Extension implements RunHooks {
       }
     }
 
-    await this._queueTestRun(request, isDebug ? 'debug' : 'run');
+    const result = await this._queueTestRun(request, isDebug ? 'debug' : 'run');
 
     if (request.continuous) {
       for (const model of this._models.enabledModels())
         await model.addToWatch(request.include, cancellationToken!);
     }
+
+    return result;
   }
 
   private async _queueTestRun(request: vscodeTypes.TestRunRequest, mode: 'run' | 'debug') {
-    await this._queueCommand(() => this._runTests(request, mode), undefined);
+    return await this._queueCommand(() => this._runTests(request, mode), undefined);
   }
 
   private async _queueWatchRun(request: vscodeTypes.TestRunRequest, type: 'files' | 'items') {
@@ -482,7 +484,7 @@ export class Extension implements RunHooks {
     }
   }
 
-  private async _runTests(request: vscodeTypes.TestRunRequest, mode: 'run' | 'debug' | 'watch') {
+  private async _runTests(request: vscodeTypes.TestRunRequest, mode: 'run' | 'debug' | 'watch'): Promise<boolean> {
     this._completedSteps.clear();
     this._executionLinesChanged();
     const include = request.include;
@@ -519,14 +521,16 @@ export class Extension implements RunHooks {
     }
 
     try {
+      const failedTests = new Set<vscodeTypes.TestItem>();
       for (const model of this._models.enabledModels()) {
         const result = model.narrowDownLocations(request);
         if (!result.testIds && !result.locations)
           continue;
         if (!model.enabledProjects().length)
           continue;
-        await this._runTest(this._testRun, request, testItemForGlobalErrors, new Set(), model, mode, enqueuedTests.length === 1);
+        await this._runTest(this._testRun, request, testItemForGlobalErrors, failedTests, model, mode, enqueuedTests.length === 1);
       }
+      return failedTests.size === 0;
     } finally {
       this._activeSteps.clear();
       this._executionLinesChanged();

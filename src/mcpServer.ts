@@ -18,7 +18,6 @@ import http from 'http';
 import net from 'net';
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { TextContent } from '@modelcontextprotocol/sdk/types';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport';
@@ -36,7 +35,7 @@ const runTestInput = z.object({
 });
 
 const runTestOutput = z.object({
-  result: z.enum(['passed', 'failed', 'skipped']),
+  result: z.enum(['passed', 'failed']),
 });
 
 interface MCPServerDelegate {
