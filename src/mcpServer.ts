@@ -30,8 +30,17 @@ const testTreeOutput = z.object({
   }))
 });
 
+const runTestInput = z.object({
+  id: z.string(),
+});
+
+const runTestOutput = z.object({
+  result: z.enum(['passed', 'failed', 'skipped']),
+});
+
 interface MCPServerDelegate {
   getTestTree(): Promise<z.infer<typeof testTreeOutput>>;
+  runTest(input: z.infer<typeof runTestInput>): Promise<z.infer<typeof runTestOutput>>;
 }
 
 export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
@@ -177,6 +186,14 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
       return {
         content: [],
         structuredContent: tree
+      };
+    });
+
+    server.registerTool('runPlaywrightTest', { inputSchema: runTestInput.shape, outputSchema: runTestOutput.shape }, async input => {
+      const result = await this._delegate.runTest(input);
+      return {
+        content: [],
+        structuredContent: result
       };
     });
 

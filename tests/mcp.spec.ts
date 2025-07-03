@@ -28,7 +28,10 @@ test('tool list', async ({ activate }) => {
 
   const client = await vscode.connectToMCP();
   const tools = await client.listTools();
-  expect(tools.tools.map(t => t.name)).toEqual(['getPlaywrightTestTree']);
+  expect(tools.tools.map(t => t.name)).toEqual([
+    'getPlaywrightTestTree',
+    'runPlaywrightTest',
+  ]);
 });
 
 test('test tree', async ({ activate }) => {
@@ -43,14 +46,20 @@ test('test tree', async ({ activate }) => {
   await testController.expandTestItems(/test.spec.ts/);
 
   const client = await vscode.connectToMCP();
-  const result = await client.callTool({ name: 'getPlaywrightTestTree' });
+  let result = await client.callTool({ name: 'getPlaywrightTestTree' });
   expect(result.content).toEqual([]);
   expect(result.structuredContent).toEqual({
     tests: [
       {
         id: expect.any(String),
-        name: 'tests › test.spec.ts › one',
+        name: 'test.spec.ts › one',
       }
     ]
+  });
+
+  result = await client.callTool({ name: 'runPlaywrightTest', arguments: { id: (result.structuredContent as any).tests[0].id } });
+  expect(result.content).toEqual([]);
+  expect(result.structuredContent).toEqual({
+    result: 'passed'
   });
 });

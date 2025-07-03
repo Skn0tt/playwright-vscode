@@ -112,22 +112,37 @@ export class Extension implements RunHooks {
     this._debugHighlight = new DebugHighlight(vscode, this._reusedBrowser);
     this._mcpServer = new MCPServer(this._vscode, {
       getTestTree: async () => {
-        const tests = [...this._testController.items].flatMap(([id, item]) => this._testTree.collectTestsInside(item)).map(upstreamTreeItem);
+        const tests = [...this._testController.items].flatMap(([id, item]) => this._testTree.collectTestsInside(item));
         return {
           tests: tests.map(t => {
+            let upstream = upstreamTreeItem(t);
+            if (upstream.kind === 'case')
+              upstream = upstream.test as any;
             const path: string[] = [];
             const visit = (item: TreeItem) => {
               if (item.parent)
                 visit(item.parent);
               path.push(item.title);
             };
-            visit(t);
+            visit(upstream);
 
             return {
-              id: t.id,
-              name: path.slice(1).join(' › '),
+              id: upstream.id,
+              name: path.slice(2).join(' › '),
             };
           })
+        };
+      },
+
+      runTest: async ({ id }) => {
+        const testItem = this._testTree.testItemForTest({ id });
+        if (!testItem)
+          throw new Error(`Test with id "${id}" not found in the test tree.`);
+
+        const request = new this._vscode.TestRunRequest([testItem]);
+        await this._handleTestRun(false, request);
+        return {
+          result: 'passed'
         };
       },
     });

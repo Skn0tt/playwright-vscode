@@ -290,7 +290,7 @@ export class TestTree extends DisposableBase {
     this._rootItems.delete(fsPath);
   }
 
-  testItemForTest(test: reporterTypes.TestCase): vscodeTypes.TestItem | undefined {
+  testItemForTest(test: { id: string }): vscodeTypes.TestItem | undefined {
     return this._testItemByTestId.get(test.id);
   }
 
