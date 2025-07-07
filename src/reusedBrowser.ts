@@ -414,6 +414,10 @@ export class Backend extends BackendClient {
   }
 
   override requestGracefulTermination() {
+    const isExternalBrowserServer = true; // TODO
+    if (isExternalBrowserServer)
+      return;
+
     this.send('kill').catch(() => {});
   }
 
