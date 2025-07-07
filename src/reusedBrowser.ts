@@ -394,6 +394,7 @@ export class ReusedBrowser implements vscodeTypes.Disposable {
   private _stop() {
     this._resetExtensionState();
     this._backend?.requestGracefulTermination();
+    this._backend?.close();
     this._backend = undefined;
     this._pageCount = 0;
   }
