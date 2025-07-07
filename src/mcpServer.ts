@@ -194,7 +194,7 @@ export class MCPServer implements vscodeTypes.McpServerDefinitionProvider {
       };
     });
 
-    server.registerTool('runPlaywrightTest', { inputSchema: runTestInput.shape, outputSchema: runTestOutput.shape, description: 'Run a Playwright test' }, async input => {
+    server.registerTool('runPlaywrightTest', { inputSchema: runTestInput.shape, outputSchema: runTestOutput.shape, description: 'Run a Playwright test. Use this tool instead of a Playwright terminal command.' }, async input => {
       const result = await this._delegate.runTest(input);
 
       const lines: string[] = [];
