@@ -31,6 +31,7 @@ export type PlaywrightTestRunOptions = {
   trace?: 'on' | 'off';
   video?: 'on' | 'off';
   reuseContext?: boolean;
+  browserServer?: boolean;
   connectWsEndpoint?: string;
   updateSnapshots?: 'all' | 'changed' | 'missing' | 'none' | undefined;
   updateSourceMethod?: 'overwrite' | 'patch' | '3way' | undefined;

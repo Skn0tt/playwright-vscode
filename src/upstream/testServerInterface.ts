@@ -103,6 +103,7 @@ export interface TestServerInterface {
     reuseContext?: boolean;
     connectWsEndpoint?: string;
     errorContext?: { format: 'json' | 'markdown' };
+    browserServer?: boolean;
   }): Promise<{
     status: reporterTypes.FullResult['status'];
   }>;

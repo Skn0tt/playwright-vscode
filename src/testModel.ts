@@ -529,8 +529,7 @@ export class TestModel extends DisposableBase {
     if (globalSetupResult !== 'passed')
       return;
 
-    const externalOptions = await this._embedder.runHooks.onWillRunTests(this.config, false);
-    const showBrowser = this._embedder.settingsModel.showBrowser.get() && !!externalOptions.connectWsEndpoint;
+    const showBrowser = this._embedder.settingsModel.showBrowser.get();
 
     let trace: 'on' | 'off' | undefined;
     let video: 'on' | 'off' | undefined;
@@ -552,7 +551,7 @@ export class TestModel extends DisposableBase {
       trace,
       video,
       reuseContext: showBrowser,
-      connectWsEndpoint: showBrowser ? externalOptions.connectWsEndpoint : undefined,
+      browserServer: showBrowser,
       updateSnapshots: noOverrideToUndefined(this._embedder.settingsModel.updateSnapshots.get()),
       updateSourceMethod: noOverrideToUndefined(this._embedder.settingsModel.updateSourceMethod.get()),
     };
