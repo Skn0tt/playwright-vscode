@@ -449,12 +449,20 @@ export class TestModel extends DisposableBase {
     this._collection._modelUpdated(this);
   }
 
-  canRunGlobalHooks(type: 'setup' | 'teardown') {
+  canManuallyRunGlobalHooks(type: 'setup' | 'teardown') {
     if (type === 'setup') {
       const config = this._playwrightTest.config();
       if (config && !config.globalSetup && !config.globalTeardown && !config.webServer)
         return false;
 
+      return this.canRunGlobalHooks('setup');
+    }
+
+    return this.canRunGlobalHooks('teardown');
+  }
+
+  canRunGlobalHooks(type: 'setup' | 'teardown') {
+    if (type === 'setup') {
       if (this._embedder.settingsModel.runGlobalSetupOnEachRun.get())
         return true;
 
